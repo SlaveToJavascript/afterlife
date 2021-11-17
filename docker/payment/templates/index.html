@@ -1,0 +1,162 @@
+<!-- https://testdriven.io/blog/adding-a-custom-stripe-checkout-to-a-flask-app/#custom-stripe-checkout -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Stripe Checkout</title>
+  <link rel="shortcut icon" type="image/x-icon" href="https://stripe.com/img/v3/home/twitter.png">
+  <style>
+    .form-control {
+    background-color: white !important;
+    }
+    body {
+        text-align: center;
+    }
+    div {
+        margin: 0 auto;
+    }
+    #status {
+      display: none;
+    }
+  </style>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+  <script src="https://checkout.stripe.com/checkout.js"></script>
+</head>
+<body>
+  <div>
+    <p>Success Test: Card Number 4242424242424242; Date any future date; CVC any 3 digits</p>
+    <p>Error Test: Card Number 4000000000000341; Date any future date; CVC any 3 digits</p>
+    <h2 id="price"></h2>
+    <input type="button" id="custom-button" value="Pay with Card">
+      <!-- <script
+      src="https://checkout.stripe.com/checkout.js"
+      class="stripe-button"
+      data-key="{{ key }}"
+      data-description="A Flask Charge"
+      data-amount="500"
+      data-locale="auto">
+      </script> -->
+  </div>
+  <div id="status">
+    <br>
+    <div id="alert" role="alert"></div>
+  </div>
+  <script>
+    var inputid = location.search.substring(1).split("=")[1];
+    var packageid;
+    var packagename;
+    var price;
+    var email;
+    var customername;
+    $(async() => {           
+      // Change serviceURL to your own
+      try {
+          var serviceURL = "http://127.0.0.1:5001/order/" + inputid;
+          const response =
+            await fetch(
+              serviceURL, { method: 'GET' }
+          );
+          const order = await response.json();
+          packageid = order.package_id;
+          email = order.email;
+          customername = order.customer_name;
+          var serviceURL = "http://127.0.0.1:5000/package/" + packageid;
+          const response2 =
+            await fetch(
+              serviceURL, { method: 'GET' }
+          );
+          const package = await response2.json();
+          price = package.packageprice;
+          packagename = package.packagename;
+          console.log(packagename);
+          var message = "Buy package for $" + (price*1).toFixed(2);
+          document.getElementById("price").textContent=message;
+        } catch (error) {
+              alert
+              ('There is a problem accessing order, please try again later.<br />'+error);
+        }
+    });
+
+  </script>
+
+  <script>
+    var handler = StripeCheckout.configure({
+      key: "{{ key }}",
+      locale: "auto",
+      currency: "sgd",
+      token: function(token) {
+        fetch("/charge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", },
+          body: JSON.stringify({
+            token: token.id,
+            amount: price,
+            description: packagename,
+            email: email
+          }),
+        })
+        .then(function(response) {
+          if (response.ok) {
+            return response.json();
+          } else {
+            throw new Error('Payment failed.');
+          }
+        })
+        .then(function(jsonResponse) {
+          document.getElementById("price").innerText="";
+          document.getElementById("alert").innerText="Loading... Do not close this window."
+          document.getElementById("custom-button").style.display = "none";
+          document.getElementById("status").style.display = "inline";
+          backend();
+        });
+      }
+    });
+
+    $("#custom-button").on("click", function(e) {
+      document.getElementById("status").style.display = "none";
+      handler.open({
+        description: packagename,
+        amount: price * 100,
+        email: email
+      });
+      e.preventDefault();
+    });
+
+    window.addEventListener('popstate', function() {
+      handler.close();
+    });
+
+    async function backend() {
+      var serviceURL = "http://127.0.0.1:5001/confirm/"+inputid;
+      const response = await fetch(serviceURL, { method: 'PUT' });
+      const data = await response.json();
+
+      var serviceURL = "http://127.0.0.1:5000/packagebuy/"+packageid;
+      const response2 = await fetch(serviceURL, { method: 'PUT' });
+      const data2 = await response2.json();
+      
+      var serviceURL = "http://127.0.0.1:5555/sendemail";
+      const response3 = 
+                    await fetch(
+                        serviceURL, {
+                        method: 'POST',
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({customername: customername, email: email, packagename: packagename})
+                    });
+      const data3 = await response3.json();
+
+      document.getElementById("price").textContent="Purchase Successful";
+      document.getElementById("alert").innerHTML = "This window will close automatically within <span id=\"counter\">10</span> second(s).</p>"
+      setInterval(function(){ countdown(); },1000);
+    }
+
+    function countdown() {
+      var i = document.getElementById('counter');
+      i.innerHTML = parseInt(i.innerHTML)-1;
+      if (parseInt(i.innerHTML)<=0) {
+        window.close();
+      }
+    }
+  </script>
+
+</body>
+</html>

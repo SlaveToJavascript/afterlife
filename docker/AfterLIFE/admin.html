@@ -1,0 +1,340 @@
+<!doctype html>
+<html class="no-js" lang="zxx">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge, chrome=1">
+    <title>AfterLife - Admin View</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- <link rel="manifest" href="site.webmanifest"> -->
+    <link rel="shortcut icon" type="image/x-icon" href="img/favicon.png">
+    <!-- Place favicon.ico in the root directory -->
+
+    <!-- CSS here -->
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/owl.carousel.min.css">
+    <link rel="stylesheet" href="css/magnific-popup.css">
+    <link rel="stylesheet" href="css/font-awesome.min.css">
+    <link rel="stylesheet" href="css/themify-icons.css">
+    <link rel="stylesheet" href="css/nice-select.css">
+    <!-- <link rel="stylesheet" href="css/flaticon.css"> -->
+    <link rel="stylesheet" href="css/gijgo.css">
+    <link rel="stylesheet" href="css/animate.css">
+    <link rel="stylesheet" href="css/slicknav.css">
+    <link rel="stylesheet" href="css/style.css">
+    <!-- <link rel="stylesheet" href="css/responsive.css"> -->
+    <script 
+    src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    
+    <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.6/umd/popper.min.js"
+    integrity="sha384-wHAiFfRlMFy6i5SRaxvfOCifBUQy1xHdJ/yoi7FRNXMRBu5WHdZYu1hA6ZOblgut"
+    crossorigin="anonymous"></script>
+    
+    <script 
+    src="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/js/bootstrap.min.js"
+    integrity="sha384-B0UglyR+jN6CkvvICOB2joaf5I4l3gm9GU6Hc1og6Ls7i6U/mkkaduKaBhlAXv9k"
+    crossorigin="anonymous"></script>
+</head>
+
+<body>
+
+
+
+<script>
+    isLoggedIn();
+    getTableData();
+       //  anonymous async function 
+       //  - using await requires the function that calls it to be async
+       async function isLoggedIn() {
+        const token = localStorage.getItem('token')
+        if (token != "SuperSecurePassword") {
+            window.location.href = "admin_login.html"
+        }
+       }
+        function logout() {
+            localStorage.removeItem('token')
+        }
+
+       async function getTableData(){           
+            // Change serviceURL to your own
+            console.log("inside");
+            var serviceURL = "http://127.0.0.1:5001/get_success"; //get_success
+    
+             try {
+                 const response = await fetch(serviceURL, { method: 'GET' } );
+                 const data = await response.json();
+                 var orders = data.orders; //the arr is in data.books of the JSON data
+    
+             //     array or array.length are falsy
+                 if (!orders || !orders.length) {
+                     showError('Orders list empty or undefined.')
+                 } else {
+                     // for loop to setup all table rows with obtained book data
+                     var rows = "";
+                     
+                     for (const order of orders) {
+                         dropdown = "<select onChange=\"edit('" + order.order_id + "','" + order.undertaker_name + 
+                         "',this.value)\" id=\"UTSelect\" name=\"UT\">";
+                         UTList = ['Cindy Zheng', 'Emmanuel Tan', 'Kevin Sia', 'Lukas Tham', 'Wei Bin', 'Zhi Poh'];
+                         
+                         for (const UT of UTList) {
+                            selected = '';
+                            if (UT==order.undertaker_name) {
+                                selected = " selected";
+                            }
+                            dropdown += "<option value ='" + UT + "'" + selected + ">" + UT + "</option>";
+                         }
+                         dropdown += "</select>";
+                         
+                         eachRow =
+                             "<td>" + order.order_id + "</td>" +
+                             "<td>" + order.customer_name + "</td>" +
+                             "<td>" + order.customer_id + "</td>" +
+                             "<td>" + order.date + "</td>" +
+                             "<td>" + order.package_id + "</td>" +
+                             "<td>" + dropdown + "</td>" + 
+                            //  "<td><button type='button' onclick='edit(this.value)' value = " +order.order_id+">Edit</button> </td>" +
+                             "<td><button type='button' onclick='del(this.value)' value = " + order.order_id + ":" + order.package_id +">Delete</button></td>" ;
+                         rows += "<tbody><tr>" + eachRow + "</tr></tbody>";
+                     }
+                     // add all the rows to the table
+                     $('#packagesTable').append(rows);
+                 }
+             } catch (error) {
+                 // Errors when calling the service; such as network error, 
+                 // service offline, etc
+                //showError('There is a problem retrieving books data, please try again later.<br/>'+error);
+               
+             } // error
+         }
+
+        async function del(oidpid){
+            var temp = oidpid.split(":");
+            var oid = temp[0];
+            var pid = temp[1];
+            var popupmsg = "Delete " + oid + "?";
+            var popup = confirm(popupmsg);
+            if (popup == true) {
+                var serviceURL = "http://127.0.0.1:5001/delete/" + oid;
+                const response1 = await fetch(serviceURL, { method: 'DELETE' });
+                const data1 = await response1.json();
+
+                var serviceURL = "http://127.0.0.1:5000/packageupdate/" + pid;
+                const response3 = await fetch(serviceURL, { method: 'PUT' });
+                const data3 = await response3.json();
+
+                var serviceURL = "http://127.0.0.1:3333/delnotif/" + oid;
+                const response2 = await fetch(serviceURL, { method: 'POST',
+                headers: {"Content-Type": "application/json"} });
+                const data2 = await response2.json();
+
+                document.getElementById("packagesTable").innerHTML = "<thead class='thead-dark'>\
+                <tr><th>Order ID</th><th>Customer Name</th><th>Phone No</th><th>Date</th><th>Package</th>\
+                <th>Undertaker</th><th>Delete</th></tr></thead>";
+                getTableData();
+            }
+        }
+
+        async function edit(orderid, previousUT, selectedUT){
+            if (previousUT != selectedUT) {
+                var popupmsg = "Change undertaker from '" + previousUT + "' to '" + selectedUT + "' for " + orderid + "?";
+                var popup = confirm(popupmsg);
+                if (popup == true) {
+                    var serviceURL = "http://127.0.0.1:5001/update/" + orderid;
+                    const response4 = await fetch(serviceURL, { method: 'PUT', 
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({undertaker_name: selectedUT})
+                    });
+                    const data4 = await response4.json();
+
+                    var serviceURL = "http://127.0.0.1:3333/editnotif/" + orderid;
+                    const response5 = await fetch(serviceURL, { method: 'POST', 
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({previousUT: previousUT, newUT: selectedUT})
+                    });
+                    const data5 = await response5.json();
+                }
+                document.getElementById("packagesTable").innerHTML = "<thead class='thead-dark'>\
+                <tr><th>Order ID</th><th>Customer Name</th><th>Phone No</th><th>Date</th><th>Package</th>\
+                <th>Undertaker</th><th>Delete</th></tr></thead>";
+                getTableData();
+            }
+        }
+        
+
+    </script>
+
+
+
+    <!--[if lte IE 9]>
+            <p class="browserupgrade">You are using an <strong>outdated</strong> browser. Please <a href="https://browsehappy.com/">upgrade your browser</a> to improve your experience and security.</p>
+        <![endif]-->
+
+    <!-- header-start -->
+    <header>
+        <div class="header-area ">
+            <div id="sticky-header" class="main-header-area">
+                <div class="container">
+                    <div class="row align-items-center">
+                        <div class="col-xl-3 col-lg-3">
+                            <div class="logo-img">
+                                <a href="index.html"> 
+                                <!-- AFTERLIFE LOGO-->                                    
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-xl-9 col-lg-9">
+                            <div class="menu_wrap d-none d-lg-block">
+                                <div class="menu_wrap_inner d-flex align-items-center justify-content-end">
+                                    <div class="main-menu">
+                                        <nav>
+                                            <ul id="navigation">
+                                                 <!-- <li><a href="#">pages<i class="ti-angle-down"></i></a>
+                                                    <ul class="submenu">
+                                                        <li><a href="about.html">about</a></li>
+                                                        <li><a href="elements.html">elements</a></li>
+                                                    </ul>
+                                                </li> -->
+                                                <li>
+                                                    <a href='admin.html'>Home</a>
+                                                </li>
+                                                <li>
+                                                    <a href='suppliers.html'>Supplies</a>
+                                                </li>
+                                                <li>
+                                                    <div class="book_room">                                                    
+                                                        <div class="book_btn">
+                                                            <a href="index.html" onclick="logout()">Log Out</a>
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                            </ul>
+
+                                        </nav>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="mobile_menu d-block d-lg-none"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- header-end -->
+
+    
+
+
+
+    <!-- about_area_start -->
+    <div class="bradcam_area breadcam_bg overlay">
+        <div class="container">
+            <div class="row align-items-center">
+
+                <div class="col-xl-6 col-lg-6 col-md-6">
+                    <div class="about_info">
+                        <div class="section_title mb-20px">
+                            <h3>Admin View</h3>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- about_area_end -->
+
+
+    <div class="service_area">
+        <div id="main-container" class="container">
+            <!-- <h1 class="display-4">Buddhist Packages</h1> -->
+            
+            <!-- <form action='order.html' method="post"> -->
+            <table id="packagesTable" class='table table-striped' border='1'>
+                <thead class='thead-dark'>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Customer Name</th>
+                            <th>Phone No</th>
+                            <th>Date</th>
+                            <th>Package</th>
+                            <th>Undertaker</th>
+                            <!-- <th>Edit</th> -->
+                            <th>Delete</th>
+                        </tr>
+                    <!-- </form> -->
+                </thead>
+            </table>
+            <!-- </form> -->
+            <!-- <a id="addBookBtn" class="btn btn-primary" 
+         href="add-book.html">Add a book</a> -->
+        </div>
+        </div>
+
+ 
+
+
+
+    <!-- footer_start  -->
+    
+    <!-- footer_end  -->
+
+
+
+    <!-- JS here -->
+    <script src="js/vendor/modernizr-3.5.0.min.js"></script>
+    <script src="js/vendor/jquery-1.12.4.min.js"></script>
+    <script src="js/popper.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+    <script src="js/owl.carousel.min.js"></script>
+    <script src="js/isotope.pkgd.min.js"></script>
+    <script src="js/ajax-form.js"></script>
+    <script src="js/waypoints.min.js"></script>
+    <script src="js/jquery.counterup.min.js"></script>
+    <script src="js/imagesloaded.pkgd.min.js"></script>
+    <script src="js/scrollIt.js"></script>
+    <script src="js/jquery.scrollUp.min.js"></script>
+    <script src="js/wow.min.js"></script>
+    <script src="js/nice-select.min.js"></script>
+    <script src="js/jquery.slicknav.min.js"></script>
+    <script src="js/jquery.magnific-popup.min.js"></script>
+    <script src="js/plugins.js"></script>
+    <script src="js/gijgo.min.js"></script>
+
+    <!--contact js-->
+    <script src="js/contact.js"></script>
+    <script src="js/jquery.ajaxchimp.min.js"></script>
+    <script src="js/jquery.form.js"></script>
+    <script src="js/jquery.validate.min.js"></script>
+    <script src="js/mail-script.js"></script>
+
+    <script src="js/main.js"></script>
+    <script>
+        $('#datepicker').datepicker({
+            iconsLibrary: 'fontawesome',
+            disableDaysOfWeek: [0, 0],
+        //     icons: {
+        //      rightIcon: '<span class="fa fa-caret-down"></span>'
+        //  }
+        });
+        $('#datepicker2').datepicker({
+            iconsLibrary: 'fontawesome',
+            icons: {
+             rightIcon: '<span class="fa fa-caret-down"></span>'
+         }
+
+        });
+        var timepicker = $('#timepicker').timepicker({
+         format: 'HH.MM'
+     });
+    </script>
+</body>
+
+</html>
