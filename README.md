@@ -1,5 +1,4 @@
 # Afterlife: a one-stop funeral cremation service provider
-### Built for IS213 Enterprise Solution Design in 2020.
 
 AfterLife is a funeral-planning eCommerce web application with the objective of being an all-in-one funeral services provider that eliminates the hassle of contacting multiple intermediary service providers to plan funerals.
 
